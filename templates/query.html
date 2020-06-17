@@ -1,0 +1,615 @@
+<html>
+<head>
+  <title>MIRelevance: Query by stratum descriptor</title>
+  <script type="text/javascript" src="{{ url_for('static', filename='jquery-2.1.3.min.js') }}"></script>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='viewer.css') }}">
+  <style>
+        input { background-color: #ffdd99;}
+	p { margin: 0em; }
+	.todo { background-color: #ffccaa;}
+        table {border-collapse:collapse;}
+        table,th,td { border:1px solid black; padding:3px 7px 2px 7px;}
+        div .study { border:1px solid black; }
+        div .studies { margin-left: 20px;}
+        div .findings { margin-left: 20px;}
+        #studyform { border:1px solid black; display: none;}
+        .button, .addstudybutton, .addfindingbutton, .addimplicationbutton { border: 3px ridge blue; 
+                    display:inline-block;
+                    background-color: #ccccff;
+                   cursor: pointer;}
+        #addimplicationbutton { margin-left: 10px; }
+        .findings { display:block;}
+        .finding { border:1px solid black;} 
+        .implication{ border: 1px dashed grey;}
+        .system { background-color: lightblue; }
+        .user{ background-color: lightgreen; }
+        .interface{ background-color: #ffcc77; }
+        .context{ background-color: lightgrey; }
+        .mode{ background-color: #ffdddd; }
+        .traffic{ padding:5px; border:1px solid black;}
+        .traffic-in{ padding:5px; }
+        .traffic-out{ margin:2px; padding:1px; border:1px solid black;}
+        .addstratcomp{background-color: #ff9999; display:none;}
+        .addstratcomp input { background-color: #ffcccc;}
+        .addstratcomp .button { background-color: #ffdada; border: 3px ridge red;}
+        .addstudyvalidation { display:none; color:red; }
+        .delete { background-color: #ffaaaa; border: 3px ridge red;font-weight:bold; }
+        .switchMode { 
+            background: #ffe6d5;
+            border: 1px solid #ffe6d5; 
+            border-radius: 25px;
+            padding:3px;
+        }
+        .switchMode a { 
+            text-decoration:none;
+            color:#000000;
+        }
+  </style>
+  <script>
+	function displayHint(thisOption, thisHint) { 
+	    // display the hint associated with the currently mouse-overed option
+	    // problem: must display at a reasonable position to avoid scrolling off to left
+	    var thisOffset = $(thisOption).closest('td').offset();
+	    var ourWidth = $(thisOption).closest("form").find(".hintspan").parent().width();
+	    var bestAlignment;
+	    if (thisOffset.left < ourWidth/3) {
+		bestAlignment = 'left';
+	    }
+	    else if(thisOffset.left > 2*(ourWidth/3)) {
+		bestAlignment = 'right';
+	    }
+	    else { 
+		bestAlignment = 'center';
+	    }
+      	    $(thisOption).closest("form").find(".hintspan").text(thisHint).css('background-color','#ffff00');
+	    $(thisOption).closest("form").find(".hintspan").parent().css('text-align',bestAlignment);
+	
+	    return;
+	}
+
+
+  function selectDropdownEntry (theElement, theIndex, theOptions) {
+      if(theIndex === 0) { 
+          // user selected "Add entry" message: don't care.
+          return;
+      }
+
+      // reflect the choice on our table
+      $(theElement).closest("td").prepend(theOptions[theIndex].innerHTML+ "<br/>");
+      // and remember it by adding a hidden element to the closest form 
+      // (i.e. the one we're in)
+      $(theElement).closest("form").prepend('<input type="hidden" name="stratComp'+theElement.value+'" value="stratComp'+theElement.value+'">');
+      // now that we've selected it, remove from dropdown and reset selection to default
+      theElement.remove(theIndex);
+      theElement.selectedIndex = 0;
+      // if weve added the last option (except "Add entry" message) remove the dropdown
+      if(theElement.length === 1) {
+          theElement.parentNode.removeChild(theElement);
+       }
+      // finally update dropdown hint to show that nothing is now selected
+       $(theElement).closest('form').find('.hintspan').text('None selected');
+	    
+       $("#stratComps").html("Loading...");
+       $.get("/querySubmit", $('input').serialize())
+           .success(function(json) { displayStratComps(JSON.parse(json)) });
+  }
+
+  function displayStratComps(stratComps) { 
+      var stratCompsHTML = "<span style='border:2px groove red; padding:2px; cursor:pointer; margin-bottom:15px;' onclick='location.reload()'>Reset descriptors</span>"
+    if(stratComps.length == 0) { 
+      stratCompsHTML += "<p style='margin-top:5px;'>Currently, the corpus contains no findings matching your chosen descriptors.</p>"
+    }
+    for (sCTuple in stratComps) { 
+        var tupleID = stratComps[sCTuple][1]["tupleID"].join("_");
+        var freq = stratComps[sCTuple][1]["freq"];
+        var numStudies = stratComps[sCTuple][1]["numStudies"];
+        var findings = stratComps[sCTuple][1]["findings"].join("_");
+        var sC = stratComps[sCTuple][1]["stratComps"];
+
+        sCTuple = ""
+        for (s in sC) { 
+            sCTuple += '<span class="stratCompDescriptor" title="' + sC[s]["hint"] + 
+                        '">' + sC[s]["stratum"] + ": " + sC[s]["description"] + "</span>";
+        }
+        
+        stratCompsHTML +=
+            '<div class="stratCompTuple" id="' + tupleID + '" data-findings="' + findings + '" onclick="showFindings(event, this)"><span class="stratCompTupleFreq">' + numStudies + " studies, " + freq + " findings: </span>" + sCTuple + "<span class='expand'>+</span><div class='findings'></div></div>";
+    }
+    $("#stratComps").html(stratCompsHTML);
+  }
+
+function displayFindings(message) {
+        var findingsHTML = "";
+        for (var f in message["findings"]) { 
+            findingsHTML += 
+            "<div class='finding'>" + 
+            "<div class='findingid'><span class='header'>FindingID:</span> " + message["findings"][f]["findingid"] + "</div>" +
+            "<div class='fdescription'><span class='header'>Description:</span> " + message["findings"][f]["f.description"] +"</div>" +
+                    "<div class='sid'><span class='header'>StudyID:</span> " + message["findings"][f]["s.id"] + "</div>" +
+                    "<div class='sdescription'><span class='header'>Study description:</span> " + message["findings"][f]["s.description"]+ "</div>" +
+                    "<div class='smethodology'><span class='header'>Study methodology:</span> " + message["findings"][f]["s.methodology"] +"</div>" +
+                    "<div class='ssampleframe'><span class='header'>Study sample frame:</span> " + message["findings"][f]["s.sampleframe"] +"</div>" +
+                    "<div class='ssamplesize'><span class='header'>Study sample size:</span> " + message["findings"][f]["s.samplesize"] +"</div>" +
+                  //  "<div class='slimitations'><span class='header'>Study limitations:</span> " + message["findings"][f]["s.limitations"] +"</div>"+ 
+                   // "<div class='scomments'><span class='header'>Study comments:</span> " + message["findings"][f]["s.comments"] + "</div>" +
+                   // "<div class='sreliability'><span class='header'>Study reliability:</span> " + message["findings"][f]["s.reliability"]+ "</div>"+
+                    "<div class='atitle'><span class='header'>Article title:</span> " + message["findings"][f]["a.title"]+ "</div>"+
+                    "<div class='aauthors'><span class='header'>Article authors:</span> " + message["findings"][f]["a.authors"]+ "</div>"+
+                    "<div class='ayear'><span class='header'>Year of publication:</span> " + message["findings"][f]["a.year"]+ "</div>"+
+                    "<div class='ajournal'><span class='header'>Article journal:</span> " + message["findings"][f]["a.journal"]+ "</div>"+
+                    "<div class='aid'><span class='header'>Article ID:</span> " + message["findings"][f]["a.id"]+ "</div>"+
+                    "<div class='scholar'><span class='header'>Scholar:</span>" + 
+                    "<span class='scholarlink'>" + 
+                    "<a href='http://scholar.google.ca/scholar?q="  + 
+                        encodeURI(message["findings"][f]["a.title"])  + 
+                        "' target='_blank'>Search for article</a></span></div>" + 
+                    "</div>";
+                }
+        $('#' + message["tupleID"]).children(".findings").html(findingsHTML);
+        $('.scholarlink').click(function(e) { e.stopPropagation() });
+}
+
+  function showFindings(e, element) { 
+      var stateIndicator = $(element).children(".expand");
+      if ($(stateIndicator).hasClass("closed")) { 
+          // user wants to reopen the previously closed div
+          $(stateIndicator).removeClass("closed");
+          $(stateIndicator).addClass("open");
+          $(stateIndicator).html("-");
+          $(element).children(".findings").css("display", "block");
+      }
+      else if($(stateIndicator).hasClass("open")) {
+          // user wants to hide the findings for this stratCompTuple 
+          $(stateIndicator).html("+");
+          $(stateIndicator).removeClass("open");
+          $(stateIndicator).addClass("closed");
+          $(element).children(".findings").css("display", "none");
+      }
+      else { 
+          // we haven't loaded the findings yet, so request them and open the div:
+          $.get("/queryFindings", {
+              "tupleID": $(element).attr("id"),
+              "findings": $(element).attr("data-findings")
+          }).success(function(json) { displayFindings(JSON.parse(json)) });
+          $(stateIndicator).html("-");
+          $(stateIndicator).addClass("open");
+        }
+  }
+
+
+
+  </script>
+</head>
+<body>
+  <div class="addfinding" style="padding: 4px;">
+    <div style="display: inline;" id="addfinding1">
+      <div class="findinginstance">
+        <form method="GET" id="queryform" action="/query">
+          <p style="text-align: left;"><span class="hintspan" style="background-color: white;">Dropdown hint: None selected</span></p>
+          <table>
+            <thead>
+              <tr>
+                <th class="system">Content</th>
+                <th class="system">Processing</th>
+                <th class="system">Engineering</th>
+                <th class="interface">Interface</th>
+                <th class="user">Cognitive</th>
+                <th class="user">Affective</th>
+                <th class="user">Situational</th>
+                <th class="context">Social Context</th>
+                <th class="context">Cultural Context</th>
+                <th class="mode">Mode of Searching</th>
+              </tr>
+            </thead>
+
+            <tbody>
+            <tr>
+              <td class="system">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Content">
+                  <option>Choose descriptor</option>
+
+                  <option value="1" onmouseover="displayHint(this, 'The catalogue of music is available to the information system')">Catalogue</option>
+
+                  <option value="2" onmouseover="displayHint(this, 'Recorded music')">Representation: Audio</option>
+
+                  <option value="3" onmouseover="displayHint(this, 'Musical score, sheet music, tabulature...')">Representation: Score</option>
+
+                  <option value="4" onmouseover="displayHint(this, 'Symbolic representations of music (e.g. MIDI, MEI, MusicXML)')">Representation: Symbolic</option>
+
+                  <option value="5" onmouseover="displayHint(this, 'General findings regarding the format of the storage medium')">Format (General / comparative)</option>
+
+                  <option value="6" onmouseover="displayHint(this, 'Pertaining to analogue storage media (e.g. LPs, casettes, ...)')">Format: analogue</option>
+
+                  <option value="7" onmouseover="displayHint(this, 'Pertaining to physical digital storage media (e.g. CD, DVD...)')">Format: physical digital (e.g. CD / DVD)</option>
+
+                  <option value="8" onmouseover="displayHint(this, 'Pertaining to purely digital storage (e.g. MP3 / OGG / FLAC)')">Format: pure digital (e.g. mp3 / FLAC)</option>
+
+                  <option value="9" onmouseover="displayHint(this, 'Song name, album name, artist name, composer, lyricist, etc etc...')">Bibliographic information</option>
+
+                  <option value="10" onmouseover="displayHint(this, 'e.g. classical, rock, jazz, ....')">Genre / Style</option>
+
+                  <option value="11" onmouseover="displayHint(this, 'Pertaining to specific facets of musical content (e.g. rhythm, pitch, harmony, timbre, ....)')">Music information facets</option>
+
+                  <option value="12" onmouseover="displayHint(this, 'Considerations on intellectual property, digital rights management, etc')">Legal considerations</option>
+
+                  <option value="13" onmouseover="displayHint(this, 'Tags assigned to items in the catalogue by the user(s)')">User tags</option>
+
+                  <option value="105" onmouseover="displayHint(this, 'E.g. music used in a movie or TV show')">Contextual metadata</option>
+
+                  <option value="110" onmouseover="displayHint(this, 'Relating to a song`s lyrics')">Lyrics</option>
+
+                  <option value="114" onmouseover="displayHint(this, 'Relating to visual material that is associated with the particular song / album')">Album cover(s)</option>
+
+                  <option value="121" onmouseover="displayHint(this, 'Collection(s) of music that are generated by or for the user, and are subsets of the entire catalogue available to the system')">Collections</option>
+
+                  <option value="135" onmouseover="displayHint(this, 'Listing of tracks (songs), e.g. at the back of a CD')">Track listings</option>
+
+                  <option value="138" onmouseover="displayHint(this, 'Whether specific or fuzzy...')">Release date</option>
+
+                  <option value="139" onmouseover="displayHint(this, 'information about the listening context (music, user or environment)')">listening context metadata</option>
+
+                  <option value="146" onmouseover="displayHint(this, 'E.g. artist biographies, reviews, historical context, ...')">Extra-musical information</option>
+
+                  <option value="147" onmouseover="displayHint(this, 'Visual representations of music, e.g. music videos or visual concert recordings')">Music video</option>
+
+                  <option value="151" onmouseover="displayHint(this, 'E.g. distinction of local bands vs broadly known bands')">Location</option>
+
+                  <option value="164" onmouseover="displayHint(this, 'Music Library Material')">Music Library Material</option>
+
+                  <option value="179" onmouseover="displayHint(this, 'Is the music appropriate for a particular target audience?')">Suitability to target audience</option>
+
+                  <option value="184" onmouseover="displayHint(this, 'Relating to the ``aboutness`` / ``objective meaning`` of the music, e.g. as described by metadata')">Topic / subject</option>
+                </select>
+              </td>
+
+              <td class="system">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Processing">
+                  <option>Choose descriptor</option>
+
+                  <option value="14" onmouseover="displayHint(this, 'General findings regarding processes that extract particular features from the music')">Feature extraction</option>
+
+                  <option value="15" onmouseover="displayHint(this, 'Processes to determine the key of a piece of music')">Specific purpose: key finding</option>
+
+                  <option value="16" onmouseover="displayHint(this, 'Processes that enable a computer system to follow along the score of a piece of music during performance')">Specific purpose: audio/score alignment</option>
+
+                  <option value="17" onmouseover="displayHint(this, 'Processes that find beat locations (i.e. where the beat falls) within a piece of music')">Specific purpose: beat tracking</option>
+
+                  <option value="18" onmouseover="displayHint(this, 'Processes that produce a bpm (beats per minute) estimate for a piece of music')">Specific purpose: tempo estimation</option>
+
+                  <option value="19" onmouseover="displayHint(this, 'Aggregative processes that take into account the behaviours of many users (e.g. to generate recommendations)')">Specific purpose: collaborative filtering</option>
+
+                  <option value="20" onmouseover="displayHint(this, 'Mel-frequency cepstrum coefficients, commonly used sound modelling technique')">Specific technique: MFCC</option>
+
+                  <option value="21" onmouseover="displayHint(this, 'Training a classifier (e.g. SVM) on a collection of user tags, in order to enable tag prediction')">Specific technique: Tag classification</option>
+
+                  <option value="22" onmouseover="displayHint(this, 'Concerning the integration of various disparate MIR processes into a larger system (the `Grand Challenge` to MIR)')">General: Integration into a system</option>
+
+                  <option value="108" onmouseover="displayHint(this, 'Recommandation system')">Recommendation system</option>
+
+                  <option value="109" onmouseover="displayHint(this, 'General findings related to MIR processes')">General: Processing</option>
+
+                  <option value="113" onmouseover="displayHint(this, 'MIR algorithm(s) that take in an example song (e.g. an mp3) and return a set of similar or related songs')">Query-by-Example</option>
+
+                  <option value="131" onmouseover="displayHint(this, 'MIR algorithm(s) that enable a user to seek musical information by singing, whistling, or humming into a microphone')">Query-by-Singing/Humming</option>
+
+                  <option value="132" onmouseover="displayHint(this, 'MIR algorithm(s) that enable a user to seek musical information by performing (fragments of) music on an instrument')">Query-by-Performance</option>
+
+                  <option value="134" onmouseover="displayHint(this, 'use of fuzzy logic as the IR algorithm')">Fuzzy logic</option>
+
+                  <option value="140" onmouseover="displayHint(this, 'logging information about a listening session')">session logging</option>
+
+                  <option value="143" onmouseover="displayHint(this, 'translates query term ')">Query term translation</option>
+
+                  <option value="144" onmouseover="displayHint(this, 'Process(es) to compute artist-to-artist similarity measures')">Artist similarity</option>
+
+                  <option value="152" onmouseover="displayHint(this, 'Concerned with the evaluation of MIR algorithms, e.g. MIREX')">Algorithm evaluation</option>
+
+                  <option value="153" onmouseover="displayHint(this, 'Mirex`s AMS task')">Specific purpose: audio similarity</option>
+
+                  <option value="154" onmouseover="displayHint(this, 'Obtaining large data-sets via crowdsourcing')">Crowdsourcing</option>
+
+                  <option value="165" onmouseover="displayHint(this, 'Automatically classifying the mood carried by music, e.g. as compared against human evaluator ground truth determined for the MIREX AMC task')">Specific purpose: audio mood classification</option>
+
+                  <option value="181" onmouseover="displayHint(this, 'System processes that perform melody segmentation')">Specific purpose: melody segmentation</option>
+
+                  <option value="183" onmouseover="displayHint(this, 'System processes performing voice separation')">Specific purpose: voice separation</option>
+                </select>
+              </td>
+
+              <td class="system">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Engineering">
+                  <option>Choose descriptor</option>
+
+                  <option value="23" onmouseover="displayHint(this, 'Processing power')">Processing power</option>
+
+                  <option value="24" onmouseover="displayHint(this, 'Storage capacity')">Storage capacity</option>
+
+                  <option value="25" onmouseover="displayHint(this, 'E.g. battery life, microphone... if very specific to a particular characteristic, feel free to add it as its own descriptor...')">Device characteristics</option>
+
+                  <option value="26" onmouseover="displayHint(this, 'E.g. headphones, loud speakers')">Listening device selection</option>
+
+                  <option value="118" onmouseover="displayHint(this, 'E.g. processing speed, download / streaming speed')">Speed</option>
+
+                  <option value="166" onmouseover="displayHint(this, 'e.g. mobile phone, desktop computer, ...')">Device type</option>
+                </select>
+              </td>
+
+              <td class="interface">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Interface">
+                  <option>Choose descriptor</option>
+
+                  <option value="27" onmouseover="displayHint(this, 'Pertaining to the point of interaction between user and system (in an HII sense)')">General human information interaction</option>
+
+                  <option value="28" onmouseover="displayHint(this, 'Pertaining to the specifics of (a) particular system interface(s) (in an HCI sense)')">Specific interface</option>
+
+                  <option value="29" onmouseover="displayHint(this, 'Pertaining to the ability of users to actually make use a particular interface')">Suitability to target audience</option>
+
+                  <option value="30" onmouseover="displayHint(this, 'Dimensions along which a query is possible (e.g. by song title, by composer, by tempo, by key, ...)')">Query access points</option>
+
+                  <option value="31" onmouseover="displayHint(this, 'E.g. query by humming, by tapping, by audio file example, ... ')">Query mechanisms</option>
+
+                  <option value="32" onmouseover="displayHint(this, 'How do we rank the items in the result set?')">Ranking criteria</option>
+
+                  <option value="107" onmouseover="displayHint(this, 'Similar to query access points, but relating to format of output or results')">Output options</option>
+
+                  <option value="155" onmouseover="displayHint(this, 'Shuffle mode')">Shuffle mode</option>
+
+                  <option value="176" onmouseover="displayHint(this, 'e.g. visualization of music collection')">Visualisation</option>
+                </select>
+              </td>
+
+              <td class="user">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Cognitive">
+                  <option>Choose descriptor</option>
+
+                  <option value="33" onmouseover="displayHint(this, 'i.e. the user`s a priori musical preferences')">Taste profile</option>
+
+                  <option value="34" onmouseover="displayHint(this, 'The user`s similarity judgement (could be along various dimensions, e.g. melody, singer`s voice, mood, ...)')">Similarity judgement</option>
+
+                  <option value="35" onmouseover="displayHint(this, 'The user`s ability to retain and recall musical information')">Memory</option>
+
+                  <option value="36" onmouseover="displayHint(this, 'The user`s experiential perception of (aspects of) the music')">Perception</option>
+
+                  <option value="37" onmouseover="displayHint(this, 'Level of user engagement with music, e.g. ``is music an important part of your life?``')">Musical engagement</option>
+
+                  <option value="38" onmouseover="displayHint(this, 'Level of user`s musical training / expertise')">Musical training</option>
+
+                  <option value="39" onmouseover="displayHint(this, 'Moving in time to the music, as in dance, exercise, housework, ...')">Sensorimotor synchronization</option>
+
+                  <option value="40" onmouseover="displayHint(this, 'Cognitive ability to produce music (e.g. by singing, playing an instrument)')">Production</option>
+
+                  <option value="101" onmouseover="displayHint(this, 'Relating to personality traits as assessed e.g. by the Big Five Inventory or the Interpersonal Reactivity Index')">Personality</option>
+
+                  <option value="102" onmouseover="displayHint(this, 'The user`s preferences when selecting from a specific set of possibilities, as opposed to their more general taste profile')">Preference</option>
+
+                  <option value="103" onmouseover="displayHint(this, 'e.g. associating songs with colours')">Crossed modalities / synaesthesia</option>
+
+                  <option value="106" onmouseover="displayHint(this, 'For example, satisfaction with different query mechanisms or with systems')">Interface satisfaction</option>
+
+                  <option value="112" onmouseover="displayHint(this, 'Pertaining to the way that people group or categorize different songs / albums / artists')">Categorization</option>
+
+                  <option value="136" onmouseover="displayHint(this, 'Concerning individuals at specific ages or developmental stages, e.g. children')">Age / developmental</option>
+
+                  <option value="137" onmouseover="displayHint(this, 'Individual differences')">Individual differences</option>
+
+                  <option value="149" onmouseover="displayHint(this, 'Concerning the listener`s degree of familiarity with the music')">Familiarity</option>
+
+                  <option value="156" onmouseover="displayHint(this, 'engagement with system, not necessarily musical content')">General engagement</option>
+
+                  <option value="161" onmouseover="displayHint(this, 'Performance on tasks involving body movement, e.g. using a tactile interface paradigm')">Motor coordination</option>
+
+                  <option value="172" onmouseover="displayHint(this, 'General / comparative')">General / comparative</option>
+
+                  <option value="175" onmouseover="displayHint(this, 'Using music to lower/uplift heartrate.')">Heartbeat synchronization</option>
+
+                  <option value="178" onmouseover="displayHint(this, 'The subjective determination of a song`s ``meaning`` (subject, topic)')">Semantic interpretation</option>
+
+                  <option value="180" onmouseover="displayHint(this, 'Human performance of melody segmentation')">Melody segmentation</option>
+
+                  <option value="182" onmouseover="displayHint(this, 'Humans performing voice separation tasks')">Voice separation</option>
+
+                  <option value="185" onmouseover="displayHint(this, 'Gender differences')">Gender</option>
+
+                  <option value="186" onmouseover="displayHint(this, 'e.g. the perceptual aspects of interacting with haptic devices')">Haptics</option>
+                </select>
+              </td>
+
+              <td class="user">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Affective">
+                  <option>Choose descriptor</option>
+
+                  <option value="41" onmouseover="displayHint(this, 'Using music in order to regulate / match / change one`s mood')">Mood management</option>
+
+                  <option value="42" onmouseover="displayHint(this, 'Music evoking emotion(s) in the listener')">Emotion elicitation</option>
+
+                  <option value="43" onmouseover="displayHint(this, 'Music connoting particular emotion(s), i.e. ``music that sounds happy/sad``')">Emotion connotation</option>
+
+                  <option value="44" onmouseover="displayHint(this, 'Music that evokes particular associations drawn from an individual`s episodic memory (e.g. `first dance at my wedding`)')">Emotional association</option>
+
+                  <option value="120" onmouseover="displayHint(this, 'To do with general affective or emotional aspects of music, listening, or MIR use')">General affect / emotion</option>
+
+                  <option value="163" onmouseover="displayHint(this, '(here satisfaction with music library)')">User satisfaction</option>
+                </select>
+              </td>
+
+              <td class="user">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Situational">
+                  <option>Choose descriptor</option>
+
+                  <option value="45" onmouseover="displayHint(this, 'General reflections or finding on people using music for certain purposes')">Use cases: General / Comparative</option>
+
+                  <option value="46" onmouseover="displayHint(this, 'Searching for music to drive to, or listening to music while driving')">Driving</option>
+
+                  <option value="47" onmouseover="displayHint(this, 'Searching for music to exercise to, or listening to music while exercising')">Exercise</option>
+
+                  <option value="48" onmouseover="displayHint(this, 'Searching for music in order to inform live music attendance plans, or listening to music in a live setting')">Live music attendance</option>
+
+                  <option value="49" onmouseover="displayHint(this, 'Using music to overcome isolation')">To overcome isolation</option>
+
+                  <option value="50" onmouseover="displayHint(this, 'Using music to get through a difficult situation')">To get through a difficult situation</option>
+
+                  <option value="51" onmouseover="displayHint(this, 'Searching for music to relax to, or listening to music while relaxing')">Relaxation</option>
+
+                  <option value="52" onmouseover="displayHint(this, 'Searching for music to play a party, or listening to music while at a party')">Party</option>
+
+                  <option value="53" onmouseover="displayHint(this, 'Searching for music to dance to, or dancing to music')">Dance</option>
+
+                  <option value="54" onmouseover="displayHint(this, 'Searching for music that will make one feel energized / awake, or feeling energized/awake as a result of listening to music')">Energize</option>
+
+                  <option value="55" onmouseover="displayHint(this, 'Searching for music to practice playing an instrument or singing to, or doing so while listening to music')">Music practice</option>
+
+                  <option value="56" onmouseover="displayHint(this, 'Searching for music in order to investigate musicological questions (as in the field of computational musicology)')">Musicological</option>
+
+                  <option value="57" onmouseover="displayHint(this, 'Pertaining to background music in commercial permises (e.g. at a shop, at a cafe)')">Commercial premises</option>
+
+                  <option value="58" onmouseover="displayHint(this, 'Specific use case: synchronization (selecting music to go with video, e.g. a movie or commercial)')">Synchronization with video</option>
+
+                  <option value="59" onmouseover="displayHint(this, 'Searching for music to listen to at home, or listening to music at home')">At home</option>
+
+                  <option value="60" onmouseover="displayHint(this, 'Searching for music to listen to while commuting, or listening to music while commuting')">Commuting</option>
+
+                  <option value="61" onmouseover="displayHint(this, 'Searching for music to listen to while at work, or listening to music while working')">Working</option>
+
+                  <option value="62" onmouseover="displayHint(this, 'Searching for music to listen to study to, or listening to music while studying')">Studying</option>
+
+                  <option value="63" onmouseover="displayHint(this, 'Using music to build one`s sense of personal identity')">Identity building</option>
+
+                  <option value="111" onmouseover="displayHint(this, 'E.g. weather condition, time of the day, humidity, light etc..')">Environmental factors</option>
+
+                  <option value="115" onmouseover="displayHint(this, 'Listening to music outside of one`s home (where specific location is unavailable)')">Outside of the home</option>
+
+                  <option value="122" onmouseover="displayHint(this, 'Searching for music for use in teaching or instruction')">Music tuition</option>
+
+                  <option value="142" onmouseover="displayHint(this, 'Music information behaviour relating to a karaoke singing context')">Karaoke</option>
+
+                  <option value="150" onmouseover="displayHint(this, 'Listening to music while engaged in artistic activity')">Artistic activity</option>
+
+                  <option value="157" onmouseover="displayHint(this, 'exploring urban environment, for example')">Exploring</option>
+
+                  <option value="158" onmouseover="displayHint(this, 'i.e. heart rate, sweating')">Physiological Factors</option>
+
+                  <option value="159" onmouseover="displayHint(this, 'sharing music (e.g., iTunes)')">Sharing</option>
+
+                  <option value="160" onmouseover="displayHint(this, 'Location-based service')">Location-based service</option>
+
+                  <option value="167" onmouseover="displayHint(this, 'e.g. weekday/weekend')">Date-related</option>
+
+                  <option value="171" onmouseover="displayHint(this, 'Background music')">Background music</option>
+
+                  <option value="173" onmouseover="displayHint(this, 'Sports')">Sports</option>
+
+                  <option value="174" onmouseover="displayHint(this, 'Reading')">Reading</option>
+
+                  <option value="187" onmouseover="displayHint(this, 'Listening to music in public to create a feeling of privacy')">Private space</option>
+
+                  <option value="188" onmouseover="displayHint(this, 'Listening to music to block out (distracting) noise')">Blocking out noise</option>
+
+                  <option value="189" onmouseover="displayHint(this, 'Using music to learn about the world and about others')">Surveillance</option>
+
+                  <option value="190" onmouseover="displayHint(this, 'Listening to music for fun, to relieve boredom and pass the time')">Diversion</option>
+                </select>
+              </td>
+
+              <td class="context">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Social Context">
+                  <option>Choose descriptor</option>
+
+                  <option value="64" onmouseover="displayHint(this, 'General reflections or findings on music information behaviour as tied to social context')">Social context: General / comparative</option>
+
+                  <option value="65" onmouseover="displayHint(this, 'The influence of friends on music selection behaviour, musical preference, etc')">Influence of friends</option>
+
+                  <option value="66" onmouseover="displayHint(this, 'The influence of relatives on music selection behaviour, musical preference, etc')">Influence of relatives</option>
+
+                  <option value="67" onmouseover="displayHint(this, 'The influence of `experts`, e.g. through reading music reviews, on music selection behaviour, musical preference, etc')">Influence of 'experts'</option>
+
+                  <option value="68" onmouseover="displayHint(this, 'The influence of peer pressure (experiencing a requirement of conformity) on music selection behaviour, musical preference, etc')">Influence of peer pressure</option>
+
+                  <option value="69" onmouseover="displayHint(this, 'Ostentatious music information behaviour aimed at influencing others` views about oneself')">Music as a social badge</option>
+
+                  <option value="119" onmouseover="displayHint(this, 'Access to information about other users of an MIR system, e.g. ability to browse others` music catalogues')">Other users of the system</option>
+
+                  <option value="124" onmouseover="displayHint(this, 'Relating or pertaining to physical music shops and / or their staff')">Record store</option>
+
+                  <option value="125" onmouseover="displayHint(this, 'Accessing online forums or communities to find out about or to discuss music ')">Online communities / forums</option>
+
+                  <option value="126" onmouseover="displayHint(this, 'Influence of teachers / instructors on music information seeking behaviour')">Teacher / instructor</option>
+
+                  <option value="127" onmouseover="displayHint(this, 'Influence of (music) libraries and (music) librarians on information seeking behaviour')">Libraries</option>
+
+                  <option value="128" onmouseover="displayHint(this, 'Information seeking behaviour triggered by public encounters with musical information')">In public</option>
+
+                  <option value="129" onmouseover="displayHint(this, 'Information seeking behaviour triggered by music encountered at special occasions')">Special occasions</option>
+
+                  <option value="130" onmouseover="displayHint(this, 'Information seeking behaviour triggered by music encountered at a cultural event, e.g. at a concert or music festival')">At a cultural event</option>
+
+                  <option value="177" onmouseover="displayHint(this, 'E.g. creative professionals negotiating with music rights holders on choosing a track to accompany a TV advert')">Interaction with / between information professionals</option>
+                </select>
+              </td>
+
+              <td class="context">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Cultural Context">
+                  <option>Choose descriptor</option>
+
+                  <option value="70" onmouseover="displayHint(this, 'General reflections or findings on music information behaviour as tied to cultural context (e.g. western music vs north indian music)')">Cultural context: General / comparative</option>
+
+                  <option value="71" onmouseover="displayHint(this, 'Specific to western music, or to western music listerners')">Specific culture: Western</option>
+
+                  <option value="72" onmouseover="displayHint(this, 'Specific to north indian music, or to north indian music listeners')">Specific culture: North Indian</option>
+
+                  <option value="73" onmouseover="displayHint(this, 'General reflections or findings on music behaviour varying with sub-cultural context (ingroup vs outgroup)')">Sub-cultural context: General  comparative</option>
+
+                  <option value="74" onmouseover="displayHint(this, 'Specific to passionate / expert listeners of classical music')">Specific sub-culture: Classical music afficionado</option>
+
+                  <option value="75" onmouseover="displayHint(this, 'Specific to passionate / expert listeners of heavy metal music')">Specific sub-culture: Metalhead</option>
+
+                  <option value="116" onmouseover="displayHint(this, 'Television programming exerting an influence on music behaviour')">Influence of TV</option>
+
+                  <option value="117" onmouseover="displayHint(this, 'Radio content exerting an influence on music behaviour')">Influence of radio</option>
+
+                  <option value="141" onmouseover="displayHint(this, 'Specific culture: Korean')">Specific culture: Korean</option>
+
+                  <option value="145" onmouseover="displayHint(this, '(Perceived) cultural popularity of music, i.e. ``mainstream`` vs ``underground`` genres / artists')">Popularity</option>
+
+                  <option value="148" onmouseover="displayHint(this, 'Specific to Chinese music, or Chinese listeners')">Specific culture: Chinese</option>
+
+                  <option value="168" onmouseover="displayHint(this, 'Relating to Irish culture, users in Ireland, or Irish users in other countries')">Specific culture: Ireland</option>
+
+                  <option value="169" onmouseover="displayHint(this, 'specific culture: Pakistani')">specific culture: Pakistani</option>
+                </select>
+              </td>
+
+              <td class="mode">
+                <select onmouseout="$(this).closest('form').find('.hintspan').text('Dropdown hint: None selected').css('background-color','white').parent().css('text-align', 'left') " onchange="selectDropdownEntry(this, this.selectedIndex, this.options);" name="Mode of Searching">
+                  <option>Choose descriptor</option>
+
+                  <option value="76" onmouseover="displayHint(this, 'As per Wilson (1997). In our case, searching for a specific song, for music to fit a specific purpose, etc...')">Active search</option>
+
+                  <option value="77" onmouseover="displayHint(this, 'As per Wilson (1997). In our case, incidental encounters with relevant / interesting musical information during an unrelated active search')">Passive search</option>
+
+                  <option value="78" onmouseover="displayHint(this, 'As per Wilson (1997). In our case, engaging in information seeking for the purpose of maintaining / building one`s (already established) musical knowledge')">On-going search</option>
+
+                  <option value="79" onmouseover="displayHint(this, 'As per Wilson (1997). Information acquisition without intentional seeking, e.g. listening to the radio, hearing background music in a shop, ...')">Passive attention</option>
+
+                  <option value="80" onmouseover="displayHint(this, 'Browsing')">Browsing</option>
+
+                  <option value="104" onmouseover="displayHint(this, 'Playlist creation')">Playlist creation</option>
+
+                  <option value="162" onmouseover="displayHint(this, 'General/comparative')">General/comparative</option>
+
+                  <option value="170" onmouseover="displayHint(this, 'Personal catalogue maintenance')">Personal catalogue maintenance</option>
+                </select>
+              </td>
+
+            </tr>
+            </tbody>
+          </table>
+      </form> 
+      </div>
+    </div>
+  </div>
+  <div id="stratComps">
+  </div>
+  <br/>
+  <span class="switchMode"><a href="/heatmap">Switch to stratum co-occurrence view</a></span>
+</body>
+</html>
