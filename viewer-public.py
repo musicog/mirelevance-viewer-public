@@ -24,7 +24,7 @@ app.debug = False
 app.config["SECRET_KEY"] = os.environ.get("MIRELEVANCESECRET") or 'asdfasdgafsgfadwsxcbget4r3qwasdft'
 app.config["SQLITEDB"] = os.environ.get("MIRELEVANCEDB") or "relevance-public.db"
 
-socketio = SocketIO(app, path="/relevance-socketio")
+socketio = SocketIO(app, path="/relevance-socketio", cors_allowed_origins='*')
 
 db = sqlite3.connect(app.config["SQLITEDB"])
 

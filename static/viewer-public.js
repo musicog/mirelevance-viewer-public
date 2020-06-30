@@ -73,7 +73,7 @@ function showFindings(e, element) {
 
 $(document).ready(function() { 
     // set up websocket
-    socket = io.connect('http://' + document.domain + ':' + location.port, { 'path': '/relevance-socketio' });
+    socket = io.connect('https://' + document.domain + ':' + location.port, { 'path': '/relevance-socketio' });
     socket.on('connect', function() { 
         socket.emit('clientConnectionEvent', 'Client connected.');
         console.log('Connected to server.');
