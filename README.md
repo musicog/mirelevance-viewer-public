@@ -7,7 +7,7 @@
 
 ## To run:
 
-`python viewer-public.py`
+`./run.sh`
 
 
 

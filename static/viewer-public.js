@@ -73,7 +73,7 @@ function showFindings(e, element) {
 
 $(document).ready(function() { 
     // set up websocket
-    socket = io.connect('http://' + document.domain + ':' + location.port);
+    socket = io.connect('http://' + document.domain + ':' + location.port, { 'path': '/relevance-socketio' });
     socket.on('connect', function() { 
         socket.emit('clientConnectionEvent', 'Client connected.');
         console.log('Connected to server.');
@@ -123,7 +123,7 @@ $(document).ready(function() {
     img.addEventListener("load", function() { 
         ctx.drawImage(img, 0, 0);
     }, false);
-    img.src = "static/heatmap.png";
+    img.src = "/relevance-static/heatmap.png";
     
 
     $("#heatmap").click(function(e) { 

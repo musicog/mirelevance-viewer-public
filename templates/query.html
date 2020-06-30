@@ -90,7 +90,7 @@
        $(theElement).closest('form').find('.hintspan').text('None selected');
 	    
        $("#stratComps").html("Loading...");
-       $.get("/querySubmit", $('input').serialize())
+       $.get("/relevance/querySubmit", $('input').serialize())
            .success(function(json) { displayStratComps(JSON.parse(json)) });
   }
 
@@ -167,7 +167,7 @@ function displayFindings(message) {
       }
       else { 
           // we haven't loaded the findings yet, so request them and open the div:
-          $.get("/queryFindings", {
+          $.get("/relevance/queryFindings", {
               "tupleID": $(element).attr("id"),
               "findings": $(element).attr("data-findings")
           }).success(function(json) { displayFindings(JSON.parse(json)) });
@@ -184,7 +184,7 @@ function displayFindings(message) {
   <div class="addfinding" style="padding: 4px;">
     <div style="display: inline;" id="addfinding1">
       <div class="findinginstance">
-        <form method="GET" id="queryform" action="/query">
+        <form method="GET" id="queryform" action="/relevance/query">
           <p style="text-align: left;"><span class="hintspan" style="background-color: white;">Dropdown hint: None selected</span></p>
           <table>
             <thead>
@@ -610,6 +610,6 @@ function displayFindings(message) {
   <div id="stratComps">
   </div>
   <br/>
-  <span class="switchMode"><a href="/heatmap">Switch to stratum co-occurrence view</a></span>
+  <span class="switchMode"><a href="/relevance/heatmap">Switch to stratum co-occurrence view</a></span>
 </body>
 </html>

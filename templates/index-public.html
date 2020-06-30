@@ -10,7 +10,7 @@
     <body>
         <div id="heatmap_container">
             <canvas id="heatmap" width="1000" height="800">
-                <img src="static/heatmap.png">
+              <img src="{{ url_for('static', filename='heatmap.png') }}" />
             </canvas>
         </div>
         <div id="details">
@@ -22,7 +22,7 @@
         <div id="stratComps">
         </div>
         <br/>
-        <span class="switchMode"><a href="/query">Switch to query by descriptor view</a></span>
+        <span class="switchMode"><a href="/relevance/query">Switch to query by descriptor view</a></span>
     </body>
 </html>
 

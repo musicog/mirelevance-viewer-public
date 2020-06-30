@@ -7,12 +7,24 @@ import sqlite3
 import os
 from pprint import pprint
 
-app = Flask(__name__)
+def prefix_route(route_function, prefix='', mask='{0}{1}'):
+  '''
+    Defines a new route function with a prefix.
+    The mask argument is a `format string` formatted with, in that order:
+      prefix, route
+  '''
+  def newroute(route, *args, **kwargs):
+    '''New function to prefix the route'''
+    return route_function(mask.format(prefix, route), *args, **kwargs)
+  return newroute
+
+app = Flask(__name__, static_url_path="/relevance-static")
+app.route = prefix_route(app.route, '/relevance')
 app.debug = False
 app.config["SECRET_KEY"] = os.environ.get("MIRELEVANCESECRET") or 'asdfasdgafsgfadwsxcbget4r3qwasdft'
 app.config["SQLITEDB"] = os.environ.get("MIRELEVANCEDB") or "relevance-public.db"
 
-socketio = SocketIO(app)
+socketio = SocketIO(app, path="/relevance-socketio")
 
 db = sqlite3.connect(app.config["SQLITEDB"])
 
